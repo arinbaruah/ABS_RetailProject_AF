@@ -1,0 +1,10 @@
+---
+title: "Retail forecasting project"
+author: "Arindom Baruah"
+format: html
+---
+
+```{r}
+library(fpp3)
+```
+

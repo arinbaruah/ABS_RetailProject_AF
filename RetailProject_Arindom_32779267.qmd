@@ -17,6 +17,8 @@ library(latex2exp)
 library(plotly)
 ```
 ```{r}
+#| eval: false
+
 library(fpp3)
 get_my_data <- function(student_id) {
   set.seed(student_id)
@@ -49,7 +51,7 @@ retail <- get_my_data(32779267)
 # Statistical features of the data
 
 
-## Complete timeseries data
+## Complete timeseries data {#sec-overall}
 
 Let us observe the time series data for the turnover generated.
 
@@ -65,9 +67,9 @@ retail %>% autoplot(Turnover) + labs(x = "Timeline (in Months)",y = "Turnover (m
 
 Based on @fig-turnover we can observe the following details in the timeseries plot:
 
-1. There appears to be a seasonality in the plot with a spike being observed on every December of a year. __The seasonality additionally appears to be consistent throughout the plot.__
+1. There appears to be a seasonality in the plot with a peak being observed on every December of a year. __The seasonality additionally appears to be consistent throughout the plot.__
 
-2. The amplitude of the spikes observed in the data appear to be increasing with time. __This indicates that the variation in seasonality of the data is multiplicative in nature.__
+2. The amplitude of the peaks observed in the data appear to be increasing with time. __This indicates that the variation in seasonality of the data is multiplicative in nature.__
 
 3. The plot also indicates the presence of an __additive trend__ in the data with overall turnover increasing every year except for the year of 2020 in an __approximate linear fashion.__ 
 
@@ -123,6 +125,88 @@ retail %>% gg_subseries(Turnover) + labs(x = "Year",y = "Turnover (mil $)",title
 3. A __drop in retail turnover for the months of March, April and May was observed in 2020.__ This can be attributed to the lockdowns set in place when the pandemic outbreak was first experienced.
 :::
 
+# Transformation and differencing of the data
 
 
+In @sec-overall, we have determined that the timeseries data in hand has multiplicative variation in seasonality and a linear trend. This inadvertantly means that we are dealing with non-stationary data.
+
+Converting a non-stationary data to a stationary data is done through the following steps:
+
+## Box-Cox Transformation
+
+In order to apply the Box-Cox transformation, we are required to obtain the appropriate value of the parameter $\lambda$ which will allow us to analyse the timeseries data with the seasonal variations being equal at all levels, thereby transforming the multiplicative variation in the data into an additive variation.
+
+Let us perform a log transformation by using $\lambda = 0$.
+
+
+```{r}
+#| label: fig-transform-log
+#| fig-cap: "Transformation of the annual retailing turnover by Log transformation"
+
+lambda = 0 # Log transformation
+
+retail |>
+  autoplot(box_cox(Turnover, 0)) +
+  labs(y = "Log of Turnover (mil $)",x = "Timeline (in Months)",
+       title = latex2exp::TeX(paste0(
+         "Transformed annual retailing turnover with $\\lambda$ = ",
+         round(lambda,2))),caption = "Source: Australian Bureau of Statistics") + theme_minimal()
+```
+
+:::{.callout-note}
+# Key takeaway
+
+@fig-transform-log illustrates the timeseries data for retailing turnover after being transformed through the Box-Cox transformation on the log scale. Here are some key observations:
+
+1. We observe that unlike the original data, the variation in seasonality of the Log transformed data was much more similar through the timeseries.
+
+2. Using the Log transformation, the datapoints with lower seasonality variation (data in the initial time period) was stretched to larger variations while the datapoints with higher seasonality variation (data in the later time period) was compressed to relatively smaller variations.
+
+3. Since the variations are fairly consistent throughout the entire period of the data, we can consider the transformed data to contain an additive variation of seasonality.
+
+4. Usage of a __log transformation also provides better interpretability as changes in a log value are proportional to changes on the original scale, multiplied by a factor.__
+
+:::
+
+
+## Seasonal differencing
+
+Now that we have transformed the data such that the variation of the peaks and troughs are consistent and do not change with the level of the timeseries, now we shall attempt to seasonally difference the data.
+
+
+```{r}
+#| label: fig-seasonaldiff
+#| fig-cap: "Seasonal differencing of the timeseries data"
+
+retail %>%
+  gg_tsdisplay(
+    Turnover %>%
+      box_cox(lambda = 0.3) %>%
+      difference(lag = 12),
+    plot_type = "partial") + labs(y = "Log of Turnover (mil $)") 
+```
+
+```{r}
+lb_pvalue <- retail %>%
+  mutate(diff_turnover = difference(Turnover)) |>
+  features(diff_turnover, ljung_box, lag = 10) %>% pull(lb_pvalue)
+```
+
+
+
+:::{.callout-note}
+# Key takeaway
+
+Based on @fig-seasonaldiff, we observe that:
+
+- The timeseries data of the log of turnover after seasonally differencing it appears to be non stationary and centred around 0, with the exception of a few outliers in 2020 as a result of the effects of COVID-19.
+
+- Based on the ACF plot, we can see that __the autocorrelation at seasonal lag 1 (or 12 months) is still significant__, but becomes insignificant from there on.
+
+- To check whether the seasonally differenced data appears as white noise, we perform a Ljung-Box test. The Ljung-box P-value for the above timeseries is `r lb_pvalue` which is less than 0.05, __thereby suggesting that the timeseries data after transformation and seasonal differencing indeed appears to be white noise, and hence stationary in nature.__
+:::
+
+```{r}
+
+```
 

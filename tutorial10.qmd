@@ -1,0 +1,199 @@
+---
+title: "tutorial10"
+author: "Arindam Baruah"
+format: html
+---
+
+
+
+```{r}
+library(fpp3)
+```
+
+```{r}
+aus_production %>% autoplot(Electricity)
+```
+```{r}
+aus_production %>% gg_subseries(Electricity)
+```
+
+```{r}
+aus_production %>% model(STL(log(Electricity))) %>% components() %>% gg_subseries(season_year)
+```
+
+
+Making non stationary data
+
+1. Transformation
+
+```{r}
+aus_production %>% autoplot(log(Electricity))
+```
+```{r}
+aus_production %>% autoplot(box_cox(Electricity,lambda = 0.3))
+```
+2. Seasonally differencing
+
+```{r}
+aus_production %>%
+  gg_tsdisplay(
+    Electricity %>%
+      box_cox(lambda = 0.3) %>%
+      difference(lag = 4),
+    plot_type = "partial")
+```
+
+
+As ACF has a slow decay, and we have multiple siginificant values, hence, we can say the data is still non stationary.
+
+
+Hence, we need to do a regular differencing.
+
+3. Regular difference
+
+
+
+```{r}
+aus_production %>%
+  gg_tsdisplay(
+    Electricity %>%
+      box_cox(lambda = 0.3) %>%
+      difference(lag = 4) %>%
+      difference(),
+    plot_type = "partial")
+```
+
+The variance is changing over time. This is not ideal. As a result, the transformation is off. Need to make it stronger.
+
+
+```{r}
+aus_production %>%
+  gg_tsdisplay(
+    Electricity %>%
+      box_cox(lambda = 0.2) %>%
+      difference(lag = 4) %>%
+      difference(),
+    plot_type = "partial")
+```
+
+
+This is better than lambda = 0.3 but there is still increase in variation. However, this cannot be improved anymore at this point.
+
+
+
+# Possible ARIMA models
+
+Already transformed box_cox lamda=0.2
+
+
+
+ARIMA(p = 16,d=0,q=0)
+
+Choose p from the last lag of PACF. As we have chosen a value, so, q must be 0.
+
+Another ARIMA model would be ARIMA(p = 0,d = 0,q = 4)
+
+Choose q from the last signficant lag of ACF.
+
+
+# Seasonal ARIMA or SARIMA
+
+Written as follows:
+
+ARIMA(p,d = 1,q)(P,D = 1,Q)[m=4]
+
+
+Capital P is seasonal. Still obtained from PACF.
+
+
+Capital P is calculated as a seasonal lag which is obtained at the end of a year.
+
+Hence, if last quarter lag is 16, seasonal lag is 4
+
+
+Q=0 as we have looked in PACF. Cant see ACF.
+
+
+Non seasonal lag, we should not look at seasonal lag. Non seasonal signficant lag is at 1. So, choose small p = 1.
+Small significant lags can be ingnored. Make a generalisable non complex model. q = 0 again.
+
+We dont need a constant as mean is centred around 0.
+
+
+Another model is by considering a MA model
+
+ARIMA(p=0,d=1,q=1)(P=0,D=1,Q=1)[m = 4]
+
+Can also mix and match by creating combinations.
+
+ARIMA(p=1,d=1,q=1)(P=0,D=1,Q=1)[m=4]
+ARIMA(p=1,d=1,q=1)(P=1,D=1,Q=1)[m=4]
+ARIMA(p=1,d=1,q=1)(P=2,D=1,Q=1)[m=4]
+ARIMA(p=1,d=1,q=1)(P=4,D=1,Q=1)[m=4]
+
+
+```{r}
+fit <- aus_production %>%
+  model(auto = ARIMA(box_cox(Electricity,0.2)),
+        ar = ARIMA(box_cox(Electricity,0.2) ~ 0 + pdq(1,1,0) + PDQ(4,1,0)),
+        ma = ARIMA(box_cox(Electricity,0.2) ~ 0 + pdq(0,1,1) + PDQ(0,1,1)),
+        mix = ARIMA(box_cox(Electricity,0.2) ~ 0 + pdq(1,1,1) + PDQ(1,1,1)),
+        ets = ETS(Electricity),
+        stl = decomposition_model(
+          dcmp = STL(box_cox(Electricity,0.2)),
+          ARIMA(season_adjust)
+        )
+                   
+                   )
+
+accuracy(fit)
+```
+
+When can we not use AIC ?
+
+We cannot use AIC for ARIMA and ETS model. This is because ARIMA and ETS are looking at completely different data and accordingly forecasting. If the auto has the same number of D with the selected SARIMA models, can be compared.
+
+
+RMSE can be however compared across the different models. This is because all transformations are undone and we are simply checking the level of forecast accuracy.
+
+
+Residual diagnostics
+
+```{r}
+fit %>% select(auto) %>%
+  gg_tsresiduals()
+```
+
+Check whether the residuals are normally distributed.
+
+Check whether residuals are IID. Independent can be checked if it is white noise through ACF.
+
+Perform Ljung Box test
+
+```{r}
+fit %>% select(auto) %>%
+  augment() %>%
+  features(.innov,ljung_box,lag = 12,fitdf = 5)
+
+```
+As lb_pvalue is >0.05, hence, insignificant and white noise.
+
+fitdf = p + q + P + Q
+
+
+```{r}
+fit %>% 
+  select(auto,ets,stl) %>%
+  forecast(h = "10 years") %>%
+  autoplot(tail(aus_production),4 * 10,alpha = 0.5)
+```
+
+ETS intervals are wider than SARIMA. ETS forecasts slightly above SARIMA. Does not seem to be affected by anomalies.
+
+Can consult to know why the anomalies have occurred.
+
+STL is least affected by the anomalies in the data. It also has the least CIs.
+
+The CI is based on 1.96 * Sigma^2
+
+Sigma^2 depends on Error^2. As error is lower for STL (Low RMSE), the CI is lower.

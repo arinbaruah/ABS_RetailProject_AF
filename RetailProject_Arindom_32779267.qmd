@@ -15,6 +15,7 @@ library(tidyverse)
 library(kableExtra)
 library(latex2exp)
 library(plotly)
+
 ```
 
 ```{r}
@@ -248,7 +249,7 @@ Based on our analysis of @fig-turnover, we have established that our data contai
 #| code-fold: true
 fit_ets <- retail_train %>%
   model(mam=ETS(Turnover ~ error("M") + trend("A")+ season("M")),
-        ets_default = ETS(Turnover)) 
+        ets_auto = ETS(Turnover)) 
 ```
 
 Let us check the default model identified by the ETS algorithm.
@@ -259,9 +260,114 @@ Let us check the default model identified by the ETS algorithm.
 
 fit_ets %>% kbl()
 ```
+```{r}
+#| label: tbl-etscomp
+#| tbl-cap: "Comparison of ETS models"
+
+glance(fit_ets) %>% select(".model":"BIC") %>% arrange(AIC) %>% kable(digits = 2, align = "r") %>% 
+  kable_styling(full_width = T) %>%
+  row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
+```
+
 
 :::{.callout-note}
-# Key takeaway
+# Comparison of ETS models
 
-As we can observe from @tbl-ets, the default ETS model fitted a "MAdM" model which is expected to produce forecasts with damped trends.
+- As we can observe from @tbl-ets, the default ETS model fitted a "MAdM" model which is expected to produce forecasts with damped trends.
+
+- @tbl-etscomp further compares the performance of the two models. Based on the AIC metric, the auto-generated ETS which is a "MAdM" model with damping was found to perform better than the "MAM" model without damping.
+:::
+
+
+## Creating an ARIMA model
+
+An ARIMA model will be fitted on the stationary data which has been obtained in @sec-transform. In order to obtain the specifications of the ARIMA models which will be fitted, we will need to look deeper into the residuals as illustrated by @fig-resid.
+
+```{r}
+#| label: fig-resid
+#| fig-cap: "Residuals of the stationary retail data"
+
+retail %>%
+  gg_tsdisplay(
+    Turnover %>%
+      box_cox(lambda = 0) %>%
+      difference(lag = 12),
+    plot_type = "partial",lag_max = 36) + labs(y = "Residuals")
+```
+
+:::{.callout-note}
+# Shortlisting ARIMA models
+
+- As we observe that the ACF plot is gradually decreasing, we turn our attention to the PACF plot and choose the auto-regressive parameter p as 24 which is the last significant lag in the plot. As we have chosen the auto-regressive component, we will automatically choose the moving average parameter q as 0. Therefore, the model will be ARIMA(24,0,0).
+
+- Similarly, if we consider the ACF plot and disregard the PACF plot, we will choose the moving average parameter q as the last significant lag from the ACF plot which is at lag 12 and automatically choose the auto-regressive component to be 0. Therefore, the model will be ARIMA(0,0,12).
+
+- We will additionally look into seasonal ARIMA models by including the seasonal lags in the model definition. For the auto-regressive model, the last significant seasonal lag from the PACF plot is observed at P = 2 (or 24 months). We automatically choose Q = 0. The model is defined as \
+ARIMA(p=24,d=1,q= 0)(P=2,D=1,Q=0)[m = 12]
+
+- In a similar manner, a seasonal ARIMA model with just the moving average parameters will be defined as ARIMA(p=0,d=1,q= 12)(P=0,D=1,Q=1)[m = 12]
+
+:::
+
+```{r}
+fit_arima <- retail_train %>%
+  model(arima_auto = ARIMA(box_cox(Turnover,0)),
+        ar = ARIMA(box_cox(Turnover,0) ~ 0 + pdq(24,1,0) + PDQ(2,1,0)),
+        ma = ARIMA(box_cox(Turnover,0) ~ 0 + pdq(0,1,12) + PDQ(0,1,1))
+        ) 
+
+
+
+```
+
+
+```{r}
+#| label: tbl-arimacomp
+#| tbl-cap: "Comparison of ARIMA models"
+
+glance(fit_arima) %>% select(".model":"BIC") %>% arrange(AIC) %>% kable(digits = 2, align = "r") %>%
+  kable_styling(full_width = T) %>%
+  row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
+```
+
+:::{.callout-note}
+# Comparison of ARIMA models
+
+Among the ARIMA models which were fitted, the auto-generated ARIMA was observed to perform better than the AR and MA models while comparing on the basis of AIC. The fitted statistics can be referred to in @tbl-arimacomp.
+:::
+
+:::{.callout-warning}
+# Note on AIC comparison for ETS and ARIMA model
+
+__We cannot use AIC for comparing ARIMA and ETS models.__ This is because ARIMA and ETS are __looking at completely different data (transformed and original data respectively) and this is reflected through the significant differencess of AICs for the ETS and ARIMA models.__ Hence, the AIC metric can only be used to compare between different ETS models or between ARIMA models which share the same differencing value.
+
+In our case, __all the ARIMA models have a differencing of 1, and hence, can be compared on the basis of AIC.__
+
+RMSE can be however be compared across the different models. This is because during computation of RMSE scores, all transformations on the data are undone and we are simply checking the level of forecast accuracy across different models. 
+:::
+
+
+```{r}
+#| label: tbl-forecomp
+#| tbl-cap: "Comparison of forecasts for each model"
+
+bind_rows(
+    fit_arima |> accuracy(),
+    fit_ets |> accuracy(),
+    fit_arima |> forecast(h = 24) |> accuracy(retail),
+    fit_ets |> forecast(h = 24) |> accuracy(retail)
+  ) |> filter(.type == "Test") %>%
+  select(-ME, -MPE, -ACF1,-State,-Industry) %>% arrange(RMSE) %>% kable(digits = 2, align = "r") %>%
+  kable_styling(full_width = T) %>%
+  row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
+```
+
+
+:::{.callout-note}
+# Forecast comparison based on RMSE
+
+We utilise the root mean square metric (RMSE) to compare the forecast accuracy of each model. These values are tabulated in @tbl-forecomp.
+
+Based on the RMSE scores of the 2-year forecast period, we can observe the __the MAM ETS model has performed the best when compared to all the ETS and ARIMA models fitted on the training data.__
+
 :::

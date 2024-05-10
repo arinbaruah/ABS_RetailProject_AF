@@ -16,6 +16,7 @@ library(kableExtra)
 library(latex2exp)
 library(plotly)
 ```
+
 ```{r}
 #| eval: false
 
@@ -125,7 +126,7 @@ retail %>% gg_subseries(Turnover) + labs(x = "Year",y = "Turnover (mil $)",title
 3. A __drop in retail turnover for the months of March, April and May was observed in 2020.__ This can be attributed to the lockdowns set in place when the pandemic outbreak was first experienced.
 :::
 
-# Transformation and differencing of the data
+# Transformation and differencing of the data {#sec-transform}
 
 
 In @sec-overall, we have determined that the timeseries data in hand has multiplicative variation in seasonality and a linear trend. This inadvertantly means that we are dealing with non-stationary data.
@@ -183,7 +184,7 @@ retail %>%
     Turnover %>%
       box_cox(lambda = 0.3) %>%
       difference(lag = 12),
-    plot_type = "partial") + labs(y = "Log of Turnover (mil $)") 
+    plot_type = "partial") + labs(y = "Annual change in Log(Turnover)") 
 ```
 
 ```{r}
@@ -199,14 +200,68 @@ lb_pvalue <- retail %>%
 
 Based on @fig-seasonaldiff, we observe that:
 
-- The timeseries data of the log of turnover after seasonally differencing it appears to be non stationary and centred around 0, with the exception of a few outliers in 2020 as a result of the effects of COVID-19.
+- The timeseries data of the log of turnover after seasonally differencing appears to be non stationary and centred around 0, with the exception of a few outliers in 2020 as a result of the effects of COVID-19. As a result, we have __successfully extracted both the seasonality and the trend of the data.__
 
-- Based on the ACF plot, we can see that __the autocorrelation at seasonal lag 1 (or 12 months) is still significant__, but becomes insignificant from there on.
+- Based on the ACF plot, we can see that __the autocorrelation at lag 12 (or at end of the year) is still significant__, but becomes insignificant from there on.
 
-- To check whether the seasonally differenced data appears as white noise, we perform a Ljung-Box test. The Ljung-box P-value for the above timeseries is `r lb_pvalue` which is less than 0.05, __thereby suggesting that the timeseries data after transformation and seasonal differencing indeed appears to be white noise, and hence stationary in nature.__
+- To check whether the seasonally differenced data appears as white noise, we perform a Ljung-Box test. The Ljung-box P-value for the above timeseries is __`r lb_pvalue`__ which is less than 0.05, __thereby suggesting that the timeseries data after transformation and seasonal differencing indeed appears to be white noise, and hence stationary in nature.__
+
+- As seasonally differencing the transformed data appears to have removed both the seasonality and trend, we do not require to perform further regular differencing of the data.
 :::
 
-```{r}
+# Methodology for creating a list of ARIMA and ETS models
 
+:::{.callout-warning}
+# Note
+
+- ETS models designed to handle both trend and seasonality in the data. Hence, __to obtain an ETS model, we will work with the un-transformed retail data.__ 
+
+- The __ARIMA model cannot handle data which varies with time__, which is the case for the retail data. As a result, we will __utilise the stationary data__ worked out in @sec-transform to fit these models. 
+
+- While exponential smoothing models are based on a description of the trend and seasonality in the data, ARIMA models aim to describe the autocorrelations in the data.
+
+:::
+
+## Splitting into train and test data
+
+As a first step, we will split our data into train and test data. Let us allocate the final 2 years as the test dataset while the remaining data will be utilised as the training data for the models to fit.
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+retail_train <- retail %>% filter(Month <= yearmonth("2020 Dec"))
+retail_test <- retail %>% filter(Month > yearmonth("2020 Dec"))
 ```
 
+
+## Creating an ETS model
+
+Based on our analysis of @fig-turnover, we have established that our data contains a linear trend and a multiplicative variation in seasonality. Hence, while fitting the ETS model, we will keep these in mind. We are mainly interested to evaluate the following two models for the current timeseries data:
+
+1. Default ETS model
+2. ETS model with multiplicative errors, additive trend and multiplicative seasonality (MAM model)
+
+
+```{r}
+#| echo: true
+#| code-fold: true
+fit_ets <- retail_train %>%
+  model(mam=ETS(Turnover ~ error("M") + trend("A")+ season("M")),
+        ets_default = ETS(Turnover)) 
+```
+
+Let us check the default model identified by the ETS algorithm.
+
+```{r}
+#| label: tbl-ets
+#| tbl-cap: "Fitted ETS models"
+
+fit_ets %>% kbl()
+```
+
+:::{.callout-note}
+# Key takeaway
+
+As we can observe from @tbl-ets, the default ETS model fitted a "MAdM" model which is expected to produce forecasts with damped trends.
+:::

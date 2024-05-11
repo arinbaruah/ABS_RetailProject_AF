@@ -185,7 +185,7 @@ retail %>%
     Turnover %>%
       box_cox(lambda = 0.3) %>%
       difference(lag = 12),
-    plot_type = "partial") + labs(y = "Annual change in Log(Turnover)") 
+    plot_type = "partial",lag_max = 36) + labs(y = "Annual change in Log(Turnover)") 
 ```
 
 ```{r}
@@ -201,13 +201,41 @@ lb_pvalue <- retail %>%
 
 Based on @fig-seasonaldiff, we observe that:
 
-- The timeseries data of the log of turnover after seasonally differencing appears to be non stationary and centred around 0, with the exception of a few outliers in 2020 as a result of the effects of COVID-19. As a result, we have __successfully extracted both the seasonality and the trend of the data.__
+- The timeseries data of the log of turnover after seasonally differencing appears to be non stationary even though centred majorly around 0, with the exception of a few outliers in 2020 due to the effects of COVID-19.
 
-- Based on the ACF plot, we can see that __the autocorrelation at lag 12 (or at end of the year) is still significant__, but becomes insignificant from there on.
+- Based on the ACF plot, we can see that __the autocorrelation at lag 12 (or at end of the year) is still significant__, but becomes insignificant from there on. It nearly takes a full year for the lags to become insignificant.
 
-- To check whether the seasonally differenced data appears as white noise, we perform a Ljung-Box test. The Ljung-box P-value for the above timeseries is __`r lb_pvalue`__ which is less than 0.05, __thereby suggesting that the timeseries data after transformation and seasonal differencing indeed appears to be white noise, and hence stationary in nature.__
+- Additionally, from the ACF plot, as we have multiple significant lags, we can say that the __timeseries plot after seasonal differencing is not completely stationary yet.__
 
-- As seasonally differencing the transformed data appears to have removed both the seasonality and trend, we do not require to perform further regular differencing of the data.
+- As a result, we will attempt to perform regular differencing next.
+
+:::
+
+## Regular differencing
+
+```{r}
+#| label: fig-regulardiff
+#| fig-cap: "Regular differencing of the timeseries data"
+
+retail %>%
+  gg_tsdisplay(
+    Turnover %>%
+      box_cox(lambda = 0.3) %>%
+      difference(lag = 12) %>%
+      difference(),
+    plot_type = "partial",lag_max = 36) + labs(y = "Annual change in Log(Turnover)") 
+```
+:::{.callout-note}
+# Key takeaway
+
+Based on @fig-regulardiff, we observe that:
+
+- The timeseries data of the log of turnover after regular and seasonal differencing appears to be stationary with the exception of a few outliers in 2020 due to the effects of COVID-19. As a result, we have __successfully extracted both the seasonality and the trend of the data.__
+
+- Based on the ACF plot, we can see that there are much fewer significant lags, with the most significant lag being at lag 12 as a result of the data being seasonal. Therefore, we can say that the auto-correlations have exponentially decayed.
+
+- As a result of the regular and seasonal differencing applied to the timeseries, we can now state that the __timeseries data is stationary.__
+
 :::
 
 # Methodology for creating a list of ARIMA and ETS models
@@ -291,7 +319,8 @@ retail %>%
   gg_tsdisplay(
     Turnover %>%
       box_cox(lambda = 0) %>%
-      difference(lag = 12),
+      difference(lag = 12) %>%
+      difference(),
     plot_type = "partial",lag_max = 36) + labs(y = "Residuals")
 ```
 
@@ -300,10 +329,10 @@ retail %>%
 
 - As we observe that the ACF plot is gradually decreasing, we turn our attention to the PACF plot and choose the auto-regressive parameter p as 24 which is the last significant lag in the plot. As we have chosen the auto-regressive component, we will automatically choose the moving average parameter q as 0. Therefore, the model will be ARIMA(24,0,0).
 
-- Similarly, if we consider the ACF plot and disregard the PACF plot, we will choose the moving average parameter q as the last significant lag from the ACF plot which is at lag 12 and automatically choose the auto-regressive component to be 0. Therefore, the model will be ARIMA(0,0,12).
+- Similarly, if we consider the ACF plot and disregard the PACF plot, we will choose the moving average parameter q as the last significant lag from the ACF plot which is at lag 12 and automatically choose the auto-regressive component to be 0. Therefore, the model will be __ARIMA(0,0,12).__
 
 - We will additionally look into seasonal ARIMA models by including the seasonal lags in the model definition. For the auto-regressive model, the last significant seasonal lag from the PACF plot is observed at P = 2 (or 24 months). We automatically choose Q = 0. The model is defined as \
-ARIMA(p=24,d=1,q= 0)(P=2,D=1,Q=0)[m = 12]
+__ARIMA(p=24,d=1,q= 0)(P=2,D=1,Q=0)[m = 12]__
 
 - In a similar manner, a seasonal ARIMA model with just the moving average parameters will be defined as ARIMA(p=0,d=1,q= 12)(P=0,D=1,Q=1)[m = 12]
 
@@ -371,3 +400,5 @@ We utilise the root mean square metric (RMSE) to compare the forecast accuracy o
 Based on the RMSE scores of the 2-year forecast period, we can observe the __the MAM ETS model has performed the best when compared to all the ETS and ARIMA models fitted on the training data.__
 
 :::
+
+

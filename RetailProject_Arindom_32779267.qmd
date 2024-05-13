@@ -429,7 +429,8 @@ fit_arima <- retail_train %>%
         ) 
 
 
-
+retail_train %>%
+  model(arima_auto = ARIMA(box_cox(Turnover,0)))
 ```
 
 
@@ -451,7 +452,7 @@ Among the ARIMA models which were fitted, the auto-generated ARIMA was observed 
 :::{.callout-warning}
 # Note on AIC comparison for ETS and ARIMA model
 
-__We cannot use AIC for comparing ARIMA and ETS models.__ This is because ARIMA and ETS are __looking at completely different data (transformed and original data respectively) and this is reflected through the significant differencess of AICs for the ETS and ARIMA models.__ Hence, the AIC metric can only be used to compare between different ETS models or between ARIMA models which share the same differencing value.
+__We cannot use AIC for comparing ARIMA and ETS models.__ This is because ARIMA and ETS are __looking at completely different data (transformed and original data respectively) and this is reflected through the significant differences of AICs for the ETS and ARIMA models.__ Hence, the AIC metric can only be used to compare between different ETS models or between ARIMA models which share the same differencing value.
 
 In our case, __all the ARIMA models have a differencing of 1, and hence, can be compared on the basis of AIC.__
 
@@ -481,6 +482,99 @@ bind_rows(
 We utilise the root mean square metric (RMSE) to compare the forecast accuracy of each model. These values are tabulated in @tbl-forecomp.
 
 Based on the RMSE scores of the 2-year forecast period, we can observe the __the MAM ETS model has performed the best when compared to all the ETS and ARIMA models fitted on the training data.__
+
+:::
+
+
+# Looking deeper into the selected ARIMA and ETS model
+
+Now that we have shortlisted a range of ETS and seasonal ARIMA models, we will analyse the best ETS and seasonal ARIMA models based on AIC values. In each case, the auto generated ETS and seasonal ARIMA models were observed to be the ones with the lowest AIC metric and are described in @tbl-finalmodel.
+
+```{r}
+final_models <- tibble()
+final_models <- fit_arima %>% select(arima_auto)
+final_models <- final_models %>% bind_cols(fit_ets %>% select(ets_auto))
+```
+
+```{r}
+#| label: tbl-finalmodel
+#| tbl-cap: "Selected ARIMA and ETS models"
+final_models %>% kable(digits = 2, align = "r") %>%
+  kable_styling(full_width = T) %>%
+  row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
+```
+
+## Residual diagnostics
+
+As a first step to analyse the model, we will check whether our assumptions of the residuals in each of these models hold true. __We assume that the model must have residuals which are independent and identically distributed (IID).__
+
+```{r}
+#| label: fig-sarimaresid
+#| fig-cap: "Residuals of the seasonal ARIMA model"
+final_models %>% select(arima_auto) %>% gg_tsresiduals() + labs(title = "Seasonal ARIMA(1,1,1)[0,1,2](12) residual diagnostics")
+```
+
+:::{.callout-note}
+# Residuals of SARIMA model
+
+Based on the residual plot as illustrated by @fig-sarimaresid, we can observe that 
+- the residuals appear as white noise. 
+- there are no significant lags in the ACF, suggesting that the residuals are independent and has not missed out on any information.
+- the residuals appear to be normally distributed apart from one outlier which is due to the low retail sales observed in the COVID-19 period.
+
+These findings suggest that the assumptions do hold true for the residuals of the SARIMA model.
+:::
+
+
+```{r}
+#| label: fig-etsresid
+#| fig-cap: "Residuals of the ETS model"
+final_models %>% select(ets_auto) %>% gg_tsresiduals() + labs(title = "ETS (MAdM) residual diagnostics") 
+```
+
+:::{.callout-note}
+# Residuals of ETS model
+
+Based on the residual plot as illustrated by @fig-etsresid, we can observe that 
+- the residuals appear as white noise. 
+- apart from the first significant lag, all other lags are insignificant,suggesting that the residuals are independent. However, the first significant lag could be of concern here.
+- the residuals appear to be normally distributed apart from one outlier which is due to the low retail sales observed in the COVID-19 period.
+
+These findings suggest that the assumptions do hold true for the residuals of the ETS model.
+:::
+
+
+## Ljung-Box test
+
+While we have objectively stated that the residuals appear as white noise in each of the models, however we can rely on a statistical test to confirm our analysis through the Ljung-box test. If the lb_pvalue is higher than 0.05, we cannot reject the null hypothesis which states that the residuals appear as white noise.
+
+```{r}
+#| label: tbl-lbpval
+#| tbl-cap: "Ljung-Box test results"
+
+lb_pval_arima <- augment(final_models) %>% filter(.model == "arima_auto") %>%
+  features(.innov,ljung_box,lag = 36,fit_df = 4)
+
+
+augment(final_models) %>% filter(.model == "ets_auto") %>%
+  features(.innov,ljung_box,lag = 36) %>% bind_rows(lb_pval_arima) %>%
+kable(align = "r") %>%
+  kable_styling(full_width = T) %>%
+  row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
+```
+
+:::{.callout-note}
+# Ljunx-Box test results
+
+- To perform the Ljung-Box test for the seasonal ARIMA model, we need to choose the __degree of freedom to compare with the appropriate null distribution__. The degree of freedom is calculated as follows:
+
+$$ \boxed{DOF = p + q + P + Q} $$ {#eq-df}
+
+Based on @eq-df, the __degree of freedom for the SARIMA(1,1,1)[0,1,2] (m=12) will be 4.__ 
+
+- The Ljung-Box test results tabulated in @tbl-lbpval suggests that while the __residuals of the seasonal ARIMA model are insignificant, the ETS model however has significant residuals, possibly due to the significant lag observed at lag 1.__
+
+
 
 :::
 

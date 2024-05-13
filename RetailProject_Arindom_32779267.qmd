@@ -567,7 +567,7 @@ Now that we have analysed the functioning of each of the models, we will assess 
 #| label: fig-forecast
 #| fig-cap: "Forecasts of each model along with prediction intervals"
 
-final_models %>% forecast(h = "10 years") %>% autoplot() + labs(title = "Forecasts for ETS and SARIMA")
+final_models %>% forecast(h = "10 years") %>% autoplot() + labs(title = "Forecasts for ETS and SARIMA",y = "Tunover (in mil $)",x = "Timeline")
 
 ```
 :::{.callout-note}

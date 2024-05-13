@@ -138,7 +138,66 @@ Converting a non-stationary data to a stationary data is done through the follow
 
 In order to apply the Box-Cox transformation, we are required to obtain the appropriate value of the parameter $\lambda$ which will allow us to analyse the timeseries data with the seasonal variations being equal at all levels, thereby transforming the multiplicative variation in the data into an additive variation.
 
-Let us perform a log transformation by using $\lambda = 0$.
+### Estimating the value of $\lambda$ manually {#sec-manual}
+
+In order to apply the Box-Cox transformation, we are required to obtain the appropriate value of the parameter $\lambda$ which will allow us to analyse the timeseries data with the seasonal variations being equal at all levels, thereby transforming the multiplicative variation in the data into an additive variation.
+
+```{r}
+#| label: fig-sqrt
+#| fig-cap: "Transformation of the annual retailing turnover by square root transformation"
+lambda = 0.5 # Square root transformation
+
+retail |>
+  autoplot(box_cox(Turnover, lambda)) +
+  labs(y = "Square root of Turnover (mil $)",x = "Timeline (in Months)",
+       title = latex2exp::TeX(paste0(
+         "Transformed annual retailing turnover with $\\lambda$ = ",
+         round(lambda,2))),
+       caption = "Source: Australian Bureau of Statistics")  + theme_minimal()
+```
+@fig-sqrt illustrates a square root transformation. As we can observe, the __square root transformation appears to be weak in nature__, and hence, not be able to effectively make the variations in seasonality equal.
+
+
+Let us now attempt to transform the data using $\lambda = 0.25$
+
+```{r}
+#| label: fig-qtr
+#| fig-cap: "Transformation of the annual retailing turnover by 1/4 root transformation"
+
+lambda = 0.25 # 1/4th root transformation
+
+retail |>
+  autoplot(box_cox(Turnover, lambda)) +
+  labs(y = "1/4 root of Turnover (mil $)",x = "Timeline (in Months)",
+       title = latex2exp::TeX(paste0(
+         "Transformed annual retailing turnover with $\\lambda$ = ",
+         round(lambda,2))),caption = "Source: Australian Bureau of Statistics") + theme_minimal()
+```
+As observed in @fig-qtr, the __transformation appears to be weak in the towards the early years as compared to the later years.__
+
+In order to increase the effect of the Box-Cox transformation, we will need to reduce the $\lambda$ value further. Let us try using $\lambda = 0.1$.
+
+```{r}
+#| label: fig-ten
+#| fig-cap: "Transformation of the annual retailing turnover by 10th root transformation"
+
+lambda = 0.1 # 1/10th root transformation
+
+retail |>
+  autoplot(box_cox(Turnover, lambda)) +
+  labs(y = "1/10 root of Turnover (mil $)",x = "Timeline (in Months)",
+       title = latex2exp::TeX(paste0(
+         "Transformed annual retailing turnover with $\\lambda$ = ",
+         round(lambda,2))),caption = "Source: Australian Bureau of Statistics") + theme_minimal()
+```
+
+Based on @fig-ten, it appears that a transformation with $\lambda = 0.1$ has still missed out in the seasonality variation during the early years as there still appears to be some amount of minor differences between the initial seasonality variation and the later seasonality variation.
+
+
+Due to the inherent low sensitivity of the $\lambda$ parameter, we can consider that any value lower than 0.1 to have the same effect as when $\lambda = 0$. __This means that the Box-Cox transformation approaches towards a logarithmic transformation.__
+
+
+Let us attempt to visualise this by performing a log transformation through $\lambda = 0$
 
 
 ```{r}
@@ -168,6 +227,29 @@ retail |>
 
 4. Usage of a __log transformation also provides better interpretability as changes in a log value are proportional to changes on the original scale, multiplied by a factor.__
 
+:::
+
+### Automating the estimation of $\lambda$
+
+We can additionally use the __Guerrero transformation__ as a means to automate the process of obtaining a $\lambda$ value. Based on this optimisation technique, a value of $\lambda = -0.09$ was obtained. The corresponding plot upon transformation can be observed in @fig-transform.
+
+```{r}
+#| label: fig-transform
+#| fig-cap: "Guerrero transformation of the annual retailing turnover data using Box-Cox method"
+
+lambda <- retail |>
+  features(Turnover, features = guerrero) |>
+  pull(lambda_guerrero)
+
+retail |>
+  autoplot(box_cox(Turnover, lambda)) +
+  labs(y = "Turnover (mil $)",x = "Timeline (in Months)",
+       title = latex2exp::TeX(paste0(
+         "Transformed annual retailing turnover with $\\lambda$ = ",
+         round(lambda,2))),caption = "Source: Australian Bureau of Statistics") + theme_minimal()
+```
+:::{.callout-note}
+As the transformation parameter $\lambda$ is not very sensitive to small changes, hence, even though the optimised calculation as a result of Guerrero transformation provides us with a value of $\lambda = -0.9$, however, for reasons stated in @sec-transform, we will consider $\lambda = 0$ (Logarithmic transformation) for our analysis.
 :::
 
 

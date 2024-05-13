@@ -115,7 +115,7 @@ Q=0 as we have looked in PACF. Cant see ACF.
 
 
 Non seasonal lag, we should not look at seasonal lag. Non seasonal signficant lag is at 1. So, choose small p = 1.
-Small significant lags can be ingnored. Make a generalisable non complex model. q = 0 again.
+Small significant lags can be ignored. Make a generalisable non complex model. q = 0 again.
 
 We dont need a constant as mean is centred around 0.
 
@@ -133,7 +133,7 @@ ARIMA(p=1,d=1,q=1)(P=4,D=1,Q=1)[m=4]
 
 
 ```{r}
-fit <- aus_production %>%
+fit <- aus_production %>% 
   model(auto = ARIMA(box_cox(Electricity,0.2)),
         ar = ARIMA(box_cox(Electricity,0.2) ~ 0 + pdq(1,1,0) + PDQ(4,1,0)),
         ma = ARIMA(box_cox(Electricity,0.2) ~ 0 + pdq(0,1,1) + PDQ(0,1,1)),
@@ -151,7 +151,7 @@ accuracy(fit)
 
 When can we not use AIC ?
 
-We cannot use AIC for ARIMA and ETS model. This is because ARIMA and ETS are looking at completely different data and accordingly forecasting. If the auto has the same number of D with the selected SARIMA models, can be compared.
+We cannot use AIC for comparingARIMA and ETS model. This is because ARIMA and ETS are looking at completely different data and accordingly forecasting. If the auto has the same number of D with the selected SARIMA models, can be compared.
 
 
 RMSE can be however compared across the different models. This is because all transformations are undone and we are simply checking the level of forecast accuracy.

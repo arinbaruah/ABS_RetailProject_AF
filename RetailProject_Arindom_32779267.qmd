@@ -287,38 +287,36 @@ Based on @fig-seasonaldiff, we observe that:
 
 - Based on the ACF plot, we can see that __the autocorrelation at lag 12 (or at end of the year) is still significant__, but becomes insignificant from there on. It nearly takes a full year for the lags to become insignificant.
 
-- Additionally, from the ACF plot, as we have multiple significant lags, we can say that the __timeseries plot after seasonal differencing is not completely stationary yet.__
-
-- As a result, we will attempt to perform regular differencing next.
+- From the above analysis, we are not certain whether the ACF plot has decayed exponentially enough. In order to objectively state that a regular differencing is necessary, we rely on the KPSS unit root test.
 
 :::
 
-## Regular differencing
+## KPSS Unit root test
+
+This test allows us to objectively say if result obtained in @fig-seasonaldiff requires further differencing in the form of regular differencing. According to this test, the null hypothesis is as follows:
+
+$H_o$ : The timeseries data is stationary
+
+If the KPSS P-value is 0.01, it means that we need to reject the null hypothesis and perform a regular differencing while a KPSS P-value of 0.1 suggests that no further differencing is necessary.
+
 
 ```{r}
-#| label: fig-regulardiff
-#| fig-cap: "Regular differencing of the timeseries data"
-
+#| label: tbl-kpss
+#| tbl-cap: "KPSS unit root test for the timseries data"
 retail %>%
-  gg_tsdisplay(
-    Turnover %>%
-      box_cox(lambda = 0.3) %>%
-      difference(lag = 12) %>%
-      difference(),
-    plot_type = "partial",lag_max = 36) + labs(y = "Annual change in Log(Turnover)") 
+  mutate(diff_turnover = difference(Turnover,lag = 12)) |>
+  features(diff_turnover, unitroot_kpss) %>% kable(digits = 2, align = "r") %>% 
+  kable_styling(full_width = T) %>%
+  row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
 ```
+
 :::{.callout-note}
-# Key takeaway
+For our timeseries data, the KPSS P-value as tabulated in @tbl-kpss is __`r retail %>%  mutate(diff_turnover = difference(Turnover,lag = 12)) |> features(diff_turnover, unitroot_kpss) %>% pull(kpss_pvalue)`__. Hence, we are __not required to perform further differencing of our timeseries data.__
 
-Based on @fig-regulardiff, we observe that:
-
-- The timeseries data of the log of turnover after regular and seasonal differencing appears to be stationary with the exception of a few outliers in 2020 due to the effects of COVID-19. As a result, we have __successfully extracted both the seasonality and the trend of the data.__
-
-- Based on the ACF plot, we can see that there are much fewer significant lags, with the most significant lag being at lag 12 as a result of the data being seasonal. Therefore, we can say that the auto-correlations have exponentially decayed.
-
-- As a result of the regular and seasonal differencing applied to the timeseries, we can now state that the __timeseries data is stationary.__
-
+This additionally means that the __seasonal differencing has successfully made our timeseries data stationary in nature.__
 :::
+
+
 
 # Methodology for creating a list of ARIMA and ETS models
 
@@ -401,8 +399,7 @@ retail %>%
   gg_tsdisplay(
     Turnover %>%
       box_cox(lambda = 0) %>%
-      difference(lag = 12) %>%
-      difference(),
+      difference(lag = 12),
     plot_type = "partial",lag_max = 36) + labs(y = "Residuals")
 ```
 

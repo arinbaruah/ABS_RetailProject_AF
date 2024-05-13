@@ -18,21 +18,6 @@ library(plotly)
 
 ```
 
-```{r}
-#| eval: false
-
-library(fpp3)
-get_my_data <- function(student_id) {
-  set.seed(student_id)
-  all_data <- readr::read_rds("https://bit.ly/monashretaildata")
-  while(TRUE) {
-    retail <- filter(all_data, `Series ID` == sample(`Series ID`, 1))
-    if(!any(is.na(fill_gaps(retail)$Turnover))) return(retail)
-  }
-}
-# Replace the argument with your student ID
-retail <- get_my_data(32779267)
-```
 
 
 ```{r}
@@ -417,7 +402,7 @@ retail %>%
 __ARIMA(p=24,d=1,q=12)[P=1,D=1,Q=1] (M=12)__ \
 __ARIMA(p=24,d=1,q=12)[P=2,D=1,Q=1] (M=12)__ \
 
-- We will additionally let the ARIMA function choose an automatically generated model which it does so by miniming the AIC.
+- We will additionally let the ARIMA function choose an automatically generated model which it does so by minimising the AIC.
 :::
 
 ```{r}
@@ -428,9 +413,6 @@ fit_arima <- retail_train %>%
         mix = ARIMA(box_cox(Turnover,0) ~ 0 + pdq(24,1,12) + PDQ(2,1,1))
         ) 
 
-
-retail_train %>%
-  model(arima_auto = ARIMA(box_cox(Turnover,0)))
 ```
 
 
@@ -575,7 +557,26 @@ Based on @eq-df, the __degree of freedom for the SARIMA(1,1,1)[0,1,2] (m=12) wil
 - The Ljung-Box test results tabulated in @tbl-lbpval suggests that while the __residuals of the seasonal ARIMA model are insignificant, the ETS model however has significant residuals, possibly due to the significant lag observed at lag 1.__
 
 
-
 :::
 
+## Forecasts and prediction intervals 
+
+Now that we have analysed the functioning of each of the models, we will assess the forecasts made by them along with their prediction intervals.
+
+```{r}
+#| label: fig-forecast
+#| fig-cap: "Forecasts of each model along with prediction intervals"
+
+final_models %>% forecast(h = "10 years") %>% autoplot() + labs(title = "Forecasts for ETS and SARIMA")
+
+```
+:::{.callout-note}
+# Key takeaway
+
+@fig-forecast illustrates the forecasts alongwith their prediction intervals for the SARIMA and the ETS model. Some of the key observations are:
+
+- __Both the models are observed to capture the seasonality effect__ of the retail data towards the end of each year.
+- Between 2021 and 2027, the SARIMA model consistently forecasted lower means compared to the ETS model. However, __post-2027, there's a noticeable shift, with the SARIMA model indicating higher mean values than the ETS model.__
+- Between 2021 to 2026, the SARIMA model was observed to possess a narrower forecast interval. However, __after 2026, the forecast intervals for the SARIMA model are consistently wider than the ETS model.__
+:::
 

@@ -563,13 +563,22 @@ Based on @eq-df, the __degree of freedom for the SARIMA(1,1,1)[0,1,2] (m=12) wil
 
 Now that we have analysed the functioning of each of the models, we will assess the forecasts made by them along with their prediction intervals.
 
+
+```{r}
+fit_final <- retail_train %>% model(ets_auto = ETS(Turnover),
+                             arima_auto = ARIMA(box_cox(Turnover,0)))
+
+```
+
+
 ```{r}
 #| label: fig-forecast
 #| fig-cap: "Forecasts of each model along with prediction intervals"
 
-final_models %>% forecast(h = "10 years") %>% autoplot() + labs(title = "Forecasts for ETS and SARIMA",y = "Tunover (in mil $)",x = "Timeline")
+fit_final %>% forecast(h = "2 years") %>% autoplot(tail(retail_train,60),alpha=0.8) + labs(title = "Forecasts for ETS and SARIMA models",y = "Turnover (in mil $)",x = "Timeline") + theme_minimal()
 
 ```
+
 :::{.callout-note}
 # Key takeaway
 
@@ -579,4 +588,30 @@ final_models %>% forecast(h = "10 years") %>% autoplot() + labs(title = "Forecas
 - Between 2021 and 2027, the SARIMA model consistently forecasted lower means compared to the ETS model. However, __post-2027, there's a noticeable shift, with the SARIMA model indicating higher mean values than the ETS model.__
 - Between 2021 to 2026, the SARIMA model was observed to possess a narrower forecast interval. However, __after 2026, the forecast intervals for the SARIMA model are consistently wider than the ETS model.__
 :::
+
+
+# Comparing the forecasts for the ETS and SARIMA models
+
+In order to comment on the forecasts for each of the preferred models, we will compare the foreacasted results of the models to the actual data. Let us overlay the predictions with the actual retail numbers as illustrated by @fig-forecompviz.
+
+```{r}
+#|label: fig-forecompviz
+#|fig-cap: "Forecasts of each model overlayed on the actual turnover"
+
+fit_final %>% forecast(h = "2 years") %>% autoplot(tail(retail,60),alpha=0.8) + labs(title = "Forecasts for ETS and SARIMA models",y = "Turnover (in mil $)",x = "Timeline") + theme_minimal()
+
+
+```
+
+:::{.callout-note}
+
+- Within the 2 year forecast period, we can observe that the SARIMA model consistently under-forecasted when compared to the ETS model. This was also the case when the actual turnovers were overlayed on the forecasts of the models.
+
+- We can observe that the point forecasts of the ETS model were closer to the actual values when compared to the SARIMA model point forecasts.
+- The forecasted peak for the ETS model was nearly coincident with the actual peak observed in 2022 and 2023 while the SARIMA model under-forecasted on both the occassions.
+- The __actual turnovers in 2022 and 2023 were observed to be always within the 80 % and 95 % prediction intervals for the ETS model__. However, the __forecasts and the prediction intervals based on the SARIMA model were significantly off the mark for the majority of the 2 year forecasts when compared to the actual numbers.__
+- Based on the visualisation in @fig-forecompviz and the RMSE results in @tbl-forecomp, we can say that __the ETS (MAdM) model forecasted better results when compared to the SARIMA(1,1,1)[0,1,2] (m=12) model.__
+
+:::
+
 

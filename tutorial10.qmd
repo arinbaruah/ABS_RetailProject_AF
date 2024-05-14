@@ -185,7 +185,7 @@ fitdf = p + q + P + Q
 fit %>% 
   select(auto,ets,stl) %>%
   forecast(h = "10 years") %>%
-  autoplot(tail(aus_production),4 * 10,alpha = 0.5)
+  autoplot(tail(aus_production,10),4 * 10,alpha = 0.5)
 ```
 
 ETS intervals are wider than SARIMA. ETS forecasts slightly above SARIMA. Does not seem to be affected by anomalies.

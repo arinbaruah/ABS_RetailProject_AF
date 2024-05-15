@@ -393,14 +393,14 @@ retail %>%
 
 - We first look at both the ACF and PACF plots to shortlist some of the important ARIMA models. Since our data would have both trend and seasonality, we will be primarily looking into seasonal ARIMA (or SARIMA) models.
 
-- Upon observing the PACF plot, we see that the seasonal lags at the end of each year is always significant. Hence, if we are looking to create a seasonal AR model, this would be quite complicated and may not be entirely accurate. However, if we were to create a model anyhow, the seasonal AR model would be defined as __ARIMA(p=24,d=1,q=0)[P=2,D=1,Q=0] (m=12).__
+- Upon observing the PACF plot, we see that the seasonal lags at the end of each year is always significant. Hence, if we are looking to create a seasonal AR model, this would be quite complicated and may not be entirely accurate. However, if we were to create a model anyhow, the seasonal AR model would be defined as __ARIMA(p=24,d=0,q=0)[P=2,D=1,Q=0] (m=12).__
 
-- To create a seasonal MA model, we analyse the ACF plot and mark the last significant lag. In this case, the last significant lag is observed at the end of 1 year (lag 12). Therefore, the seasonal MA model can be defined as __ARIMA(p=0,d=1,q=12)[P=0,D=1,Q=1] (m = 12)__.
+- To create a seasonal MA model, we analyse the ACF plot and mark the last significant lag. In this case, the last significant lag is observed at the end of 1 year (lag 12). Moreover, as we have already taken care of the seasonal lag, we will choose another lag which is the next highest after lag 12. In this instance, we choose our regular lag as lag 9. This indicates that our seasonal MA model will be defined as __ARIMA(p=0,d=1,q=9)[P=0,D=1,Q=1] (m=12)__.
 
 - We can potentially create a mixture of both a seasonal AR and MA models. Some of potential combinations without overstepping the boundaries of each of the above models would be:
 
-__ARIMA(p=24,d=1,q=12)[P=1,D=1,Q=1] (M=12)__ \
-__ARIMA(p=24,d=1,q=12)[P=2,D=1,Q=1] (M=12)__ \
+__ARIMA(p=24,d=0,q=9)[P=1,D=1,Q=1] (M=12)__ \
+__ARIMA(p=24,d=0,q=9)[P=2,D=1,Q=1] (M=12)__ \
 
 - We will additionally let the ARIMA function choose an automatically generated model which it does so by minimising the AIC.
 :::
@@ -408,9 +408,9 @@ __ARIMA(p=24,d=1,q=12)[P=2,D=1,Q=1] (M=12)__ \
 ```{r}
 fit_arima <- retail_train %>%
   model(arima_auto = ARIMA(box_cox(Turnover,0)),
-        ar = ARIMA(box_cox(Turnover,0) ~ 0 + pdq(24,1,0) + PDQ(2,1,0)),
-        ma = ARIMA(box_cox(Turnover,0) ~ 0 + pdq(0,1,12) + PDQ(0,1,1)),
-        mix = ARIMA(box_cox(Turnover,0) ~ 0 + pdq(24,1,12) + PDQ(2,1,1))
+        ar = ARIMA(box_cox(Turnover,0) ~ 0 + pdq(24,0,0) + PDQ(2,1,0)),
+        ma = ARIMA(box_cox(Turnover,0) ~ 0 + pdq(0,0,9) + PDQ(0,1,1)),
+        mix = ARIMA(box_cox(Turnover,0) ~ 0 + pdq(24,0,9) + PDQ(2,1,1))
         ) 
 
 ```
@@ -452,7 +452,7 @@ bind_rows(
     fit_arima |> forecast(h = 24) |> accuracy(retail),
     fit_ets |> forecast(h = 24) |> accuracy(retail)
   ) |> filter(.type == "Test") %>%
-  select(-ME, -MPE, -ACF1,-State,-Industry) %>% arrange(RMSE) %>% kable(digits = 2, align = "r") %>%
+  select(-ME, -MPE, -ACF1,-State,-Industry,-.type) %>% arrange(RMSE) %>% kable(digits = 2, align = "r") %>%
   kable_styling(full_width = T) %>%
   row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
 ```
@@ -657,9 +657,11 @@ fc_trends <- fit_new %>% forecast(h = "2 years")
 
 retail %>% tail(60) %>% autoplot(Turnover,alpha=0.8) + 
 labs(title = "Forecasts for ETS and SARIMA models on the entire dataset",
-y = "Turnover (in mil $)",x = "Timeline") + theme_minimal() + autolayer(fc_trends, alpha = 0.5, level = 80)
+y = "Turnover (in mil $)",x = "Timeline",caption = "Source: Australian Bureau of Statistics") + 
+theme_minimal() + autolayer(fc_trends, alpha = 0.5, level = 80)
 
 ```
+
 
 :::{.callout-note}
 # Key takeaway
@@ -678,6 +680,10 @@ The latest release of the data from the Australian Bureau of Statistics is obtai
 
 
 ```{r}
+#| echo: true
+
+# Obtaining the latest release of ABS data for series ID: A3349825J
+
 abs_data <-  read_abs(
       cat_no = NULL,
       tables = 11,
@@ -691,10 +697,16 @@ abs_data <-  read_abs(
 )
 
 ```
-```{r}
 
+
+```{r}
+#| echo: true
+
+####### Data cleaning process to streamline format of data ##########
 
 retail_data_updated <- abs_data %>% select(series,series_id,date,value)
+
+# Split column with series details into state and industry
 
 col_split <- str_split_fixed(retail_data_updated$series, ";", 3)
 retail_data_updated <- data.frame(retail_data_updated, 
@@ -702,25 +714,88 @@ retail_data_updated <- data.frame(retail_data_updated,
                  State = col_split[, 2],
                  Industry = col_split[, 3])
 
+# Remove all unnecessary characters
 
 retail_data_updated$Industry <- str_replace_all(retail_data_updated$Industry, ";", "")
 
+# Rename the fields
+
 retail_data_updated <- retail_data_updated %>% select(State,Industry,series_id,date,value) %>% rename("Turnover" = "value")
 
+
+
+# Save dataframe into a variable and create an index as yearmonth
+
+retail_data_updated <- retail_data_updated %>% 
+                       select(c(State,Industry,series_id,date,Turnover)) %>% 
+                       mutate(Month = yearmonth(date)) %>%
+                       as_tsibble(key = c(State,Industry),index = Month)
+
+# Remove all unnecessary whitespaces
+
+retail_data_updated <- retail_data_updated %>%
+  mutate(across(State:Industry, ~ str_trim(.x)))
+
+
+# Finalise the tsibble
+
+retail_data_updated <- retail_data_updated %>% select(State,Industry,series_id,Month,Turnover)
+
 ```
+
+
+Now that we have obtained the latest released data from ABS, we will see how our 2-year forecasts compare against the actual retail turnovers.
+
 
 ```{r}
+#| label: fig-forecastnewplot
+#| fig-cap: "Forecasts of each model along with prediction intervals"
+
+fc_trends <- fit_new %>% forecast(h = "2 years") 
 
 
-retail_data_updated$Month <- yearmonth(retail_data_updated$date) 
+autoplot(fc_trends,alpha = 0.8, level = 80) +
+retail_data_updated %>% tail(60) %>% autolayer(Turnover,series="ABS released Turnover") +
 
-retail_data_updated <- retail_data_updated %>% select(-date) %>% select(c(State,Industry,series_id,Month,Turnover))
+guides(
+    color = guide_legend(title = "Forecast model"),
+    fill = guide_legend(title = "Forecast model")
+  ) +
+  labs(level = "Level",
+x = "Timeline",
+y = "Turnover (in mil $)",
+title = "Forecast prediction comparison with the ABS released data",
+subtitle = "Latest ABS release: March 2024",
+caption = "Source: Australian Bureau of Statistics")  + theme_minimal() 
 
 ```
-
 
 
 ```{r}
-retail_updated <- as_tsibble(retail_data_updated, index = Month) 
+#| label: tbl-forecomprmse
+#| tbl-cap: "Comparison of forecasts for each model on the latest ABS data"
+
+forecast_rmse <-
+bind_rows(
+    fit_new |> forecast(h = 24) |> accuracy(retail_data_updated)
+  ) |> filter(.type == "Test") %>%
+  select(-ME, -MPE, -ACF1,-State,-Industry,-.type) %>% arrange(RMSE) 
+
+forecast_rmse %>% kable(digits = 2, align = "r") %>%
+  kable_styling(full_width = T) %>%
+  row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
 ```
 
+
+:::{.callout-note}
+# Comparison of forecasts with ABS released data
+
+@fig-forecastnewplot illustrates the model forecast predictions of the ETS and ARIMA model with the latest ABS released turnover data. Based on this, we can make the following observations:
+
+1. Each of the models were observed to forecast the seasonality and the trend of the data effectively. 
+2. The point forecasts by the ETS model were observed to follow the actual ABS released turnover data relatively closer than the SARIMA model.
+3. For each of the two models, the ABS released turnover data was well within the 80 % prediction interval and closely followed the point forecasts of the respective models.
+4. The ETS model successfully forecasted the peak of retail turnover with better accuracy, while the SARIMA model exhibited a tendency to slightly over-forecast the peak.
+5. @tbl-forecomprmse illustrates the point forecast accuracies for the 2 models based on the data available until the end of March 2024. The RMSE values suggest that the ETS model provided forecasts of marginally better accuracy than the SARIMA model.
+
+:::

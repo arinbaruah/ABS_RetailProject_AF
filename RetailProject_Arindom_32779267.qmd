@@ -661,4 +661,66 @@ y = "Turnover (in mil $)",x = "Timeline") + theme_minimal() + autolayer(fc_trend
 
 ```
 
+:::{.callout-note}
+# Key takeaway
+
+Based on the retail forecasts for the years 2023 and 2024 as illustrated by @fig-forecastnew, we can make the following observations:
+
+- The point estimates of the ETS and SARIMA model are close to each other in 2023 while the SARIMA model over forecasted in comparison to the ETS model in 2024.
+
+- The 80% prediction intervals are slightly wider for the SARIMA model compared to the ETS model, __indicating relatively higher uncertainty associated with forecasting using the SARIMA model.__
+
+:::
+
+# Obtaining the updated ABS data and assessing forecasts
+
+The latest release of the data from the Australian Bureau of Statistics is obtained through the link [here](https://www.abs.gov.au/statistics/industry/retail-and-wholesale-trade/retail-trade-australia/mar-2024) and will be further cleaned to create our forecasts.
+
+
+```{r}
+abs_data <-  read_abs(
+      cat_no = NULL,
+      tables = 11,
+      series_id = "A3349825J",
+      path = Sys.getenv("R_READABS_PATH", unset = tempdir()),
+      metadata = TRUE,
+      show_progress_bars = TRUE,
+      retain_files = TRUE,
+      check_local = TRUE,
+      release_date = "latest"
+)
+
+```
+```{r}
+
+
+retail_data_updated <- abs_data %>% select(series,series_id,date,value)
+
+col_split <- str_split_fixed(retail_data_updated$series, ";", 3)
+retail_data_updated <- data.frame(retail_data_updated, 
+                 Type = col_split[, 1], 
+                 State = col_split[, 2],
+                 Industry = col_split[, 3])
+
+
+retail_data_updated$Industry <- str_replace_all(retail_data_updated$Industry, ";", "")
+
+retail_data_updated <- retail_data_updated %>% select(State,Industry,series_id,date,value) %>% rename("Turnover" = "value")
+
+```
+
+```{r}
+
+
+retail_data_updated$Month <- yearmonth(retail_data_updated$date) 
+
+retail_data_updated <- retail_data_updated %>% select(-date) %>% select(c(State,Industry,series_id,Month,Turnover))
+
+```
+
+
+
+```{r}
+retail_updated <- as_tsibble(retail_data_updated, index = Month) 
+```
 

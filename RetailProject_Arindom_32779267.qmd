@@ -681,6 +681,7 @@ The latest release of the data from the Australian Bureau of Statistics is obtai
 
 ```{r}
 #| echo: true
+#| code-fold: true
 
 # Obtaining the latest release of ABS data for series ID: A3349825J
 
@@ -701,6 +702,7 @@ abs_data <-  read_abs(
 
 ```{r}
 #| echo: true
+#| code-fold: true
 
 ####### Data cleaning process to streamline format of data ##########
 
@@ -799,3 +801,8 @@ forecast_rmse %>% kable(digits = 2, align = "r") %>%
 5. @tbl-forecomprmse illustrates the point forecast accuracies for the 2 models based on the data available until the end of March 2024. The RMSE values suggest that the ETS model provided forecasts of marginally better accuracy than the SARIMA model.
 
 :::
+
+
+# Benefits and limitations of the chosen forecast models
+
+

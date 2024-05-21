@@ -331,10 +331,12 @@ retail_test <- retail %>% filter(Month > yearmonth("2020 Dec"))
 
 ## Creating an ETS model
 
-Based on our analysis of @fig-turnover, we have established that our data contains a linear trend and a multiplicative variation in seasonality. Hence, while fitting the ETS model, we will keep these in mind. We are mainly interested to evaluate the following two models for the current timeseries data:
+Based on our analysis of @fig-turnover and our decomposition of the data, we have established that our data contains a linear trend and a multiplicative variation in seasonality. Hence, while fitting the ETS model, we will keep these in mind. We are mainly interested to evaluate the following two models for the current timeseries data:
 
 1. Default ETS model
 2. ETS model with multiplicative errors, additive trend and multiplicative seasonality (MAM model)
+
+
 
 
 ```{r}
@@ -343,6 +345,14 @@ Based on our analysis of @fig-turnover, we have established that our data contai
 fit_ets <- retail_train %>%
   model(mam=ETS(Turnover ~ error("M") + trend("A")+ season("M")),
         ets_auto = ETS(Turnover)) 
+```
+
+```{r}
+#| label: fig-decomp
+#| fig-cap: "Decomposition of the ETS model"
+
+fit_ets %>% select(ets_auto) %>% components() %>% 
+autoplot() + labs(title = "Decomposition plot",subtitle = "ETS (M,Ad,M) model")
 ```
 
 Let us check the default model identified by the ETS algorithm.
@@ -514,6 +524,8 @@ These findings suggest that the assumptions do hold true for the residuals of th
 final_models %>% select(ets_auto) %>% gg_tsresiduals() + labs(title = "ETS (MAdM) residual diagnostics") 
 ```
 
+
+
 :::{.callout-note}
 # Residuals of ETS model
 
@@ -624,7 +636,7 @@ Now that we have fitted the models on the training data and tested it on the in-
 ```{r}
 
 fit_new <- retail %>% model(ets_auto = ETS(Turnover),
-                            arima_auto = ARIMA(box_cox(Turnover,0)))
+                            arima_auto = ARIMA(box_cox(Turnover,0) ~ pdq(1,1,1) + PDQ(0,1,2)))
 ```
 
 
@@ -645,7 +657,7 @@ fit_new %>% kable(align = "r") %>%
 Upon fitting the ETS and SARIMA models with the entire ABS retail dataset, we obtain the following models:
 
 1. The ETS model continues to utilise the MAdM model, which considers multiplicative errors, additive trend and multiplicative seasonality.
-2. The SARIMA model defined as ARIMA(2,0,1)(0,1,1)[12] w/ drift which is different from our previous iteration and contains an extra drift term to forecast a linear trend.
+2. The SARIMA model has been defined as ARIMA(1,1,1)(0,1,2)[12] to keep it consistent with the initial SARIMA model fitted on the training data.
 
 :::
 
@@ -655,10 +667,26 @@ Upon fitting the ETS and SARIMA models with the entire ABS retail dataset, we ob
 
 fc_trends <- fit_new %>% forecast(h = "2 years") 
 
-retail %>% tail(60) %>% autoplot(Turnover,alpha=0.8) + 
-labs(title = "Forecasts for ETS and SARIMA models on the entire dataset",
-y = "Turnover (in mil $)",x = "Timeline",caption = "Source: Australian Bureau of Statistics") + 
-theme_minimal() + autolayer(fc_trends, alpha = 0.5, level = 80)
+
+autoplot(fc_trends, alpha = 0.8,level = 80) +
+  geom_line(
+    data = retail |> tail(60),
+    aes(x = Month, y = Turnover, linetype = "Turnover (in mil$)")
+  ) +
+  guides(
+    color = guide_legend(title = "Forecast model"),
+    fill = guide_legend(title = "Forecast model"),
+    linetype = guide_legend("ABS data")
+  ) +
+  labs(
+    level = "Level",
+    x = "Timeline",
+    y = "Turnover (in mil $)",
+    title = "Forecast prediction comparison with the ABS released data",
+    subtitle = "Latest ABS release: March 2024",
+    caption = "Source: Australian Bureau of Statistics"
+  )  + 
+  theme_minimal() 
 
 ```
 
@@ -753,24 +781,29 @@ Now that we have obtained the latest released data from ABS, we will see how our
 #| label: fig-forecastnewplot
 #| fig-cap: "Forecasts of each model along with prediction intervals"
 
-fc_trends <- fit_new %>% forecast(h = "2 years") 
 
-
-autoplot(fc_trends,alpha = 0.8, level = 80) +
-retail_data_updated %>% tail(60) %>% autolayer(Turnover,series="ABS released Turnover") +
-
-guides(
-    color = guide_legend(title = "Forecast model"),
-    fill = guide_legend(title = "Forecast model")
+autoplot(fc_trends, alpha = 0.8, level = 80) +
+  geom_line(
+    data = retail_data_updated |> tail(60),
+    aes(x = Month, y = Turnover, linetype = "Turnover (in mil$)")
   ) +
-  labs(level = "Level",
-x = "Timeline",
-y = "Turnover (in mil $)",
-title = "Forecast prediction comparison with the ABS released data",
-subtitle = "Latest ABS release: March 2024",
-caption = "Source: Australian Bureau of Statistics")  + theme_minimal() 
-
+  guides(
+    color = guide_legend(title = "Forecast model"),
+    fill = guide_legend(title = "Forecast model"),
+    linetype = guide_legend("ABS data")
+  ) +
+  labs(
+    level = "Level",
+    x = "Timeline",
+    y = "Turnover (in mil $)",
+    title = "Forecast prediction comparison with the ABS released data",
+    subtitle = "Latest ABS release: March 2024",
+    caption = "Source: Australian Bureau of Statistics"
+  )  + 
+  theme_minimal() 
 ```
+
+
 
 
 ```{r}
@@ -805,4 +838,38 @@ forecast_rmse %>% kable(digits = 2, align = "r") %>%
 
 # Benefits and limitations of the chosen forecast models
 
+The benefits and the limitations of the ETS (MAdM) and the SARIMA (1,1,1)[0,1,2] (m=12) are delineated below.
+
+<div style="display: flex; gap: 20px;">
+
+
+<div style="flex: 1; border: 1px solid #ccc; padding: 10px; border-radius: 5px;background-color: #f0f8ff;">
+__Benefits__
+
+1. Suitability based on model forecasts 
+
+   - Based on our forecasts, as illustrated by @fig-forecastnewplot, we can observe that both the ETS and ARIMA models predicted turnovers very close to the actual data. This demonstrates that each model can accurately forecast the seasonality and trend of the retail data.
+
+2. Working methodology
+
+   - Due to the inherent structure of the ETS model, the decomposition of the timeseries data into errors, trend and seasonality make it easier and interpretable to choose a model for forecasting the retail data based on the historical data.
+   - The ARIMA model on the other hand forecasts the future based on the autocorrelations of the historical data (called lags). While this model is not as straight forward to interpret, however, as the model relies on the changes in the past to forecast the future, this typically allows the model to rapidly adjust for sudden changes in trend, resulting in more accurate forecasts.
+
+3. Model simplicity 
+
+  - As the ETS model can deal with multiplicative seasonality, we are not required to transform our timeseries data to stationary data. This makes the ETS model a simple one to work with.
+  - The ARIMA model, however, cannot handle non-stationary data directly. It requires transforming the data through seasonal and regular differencing to achieve stationarity before accurate forecasts can be made. While the model is more complex to interpret and involves several preparatory steps, it is a strong choice for forecasting based on the attributes of the time series data.
+
+
+</div>
+
+<div style="flex: 1; border: 1px solid #ccc; padding: 10px; border-radius: 5px;background-color: #ffe4e1;">
+
+
+__Limitations__
+
+
+</div>
+
+</div>
 

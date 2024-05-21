@@ -846,19 +846,19 @@ The benefits and the limitations of the ETS (MAdM) and the SARIMA (1,1,1)[0,1,2]
 <div style="flex: 1; border: 1px solid #ccc; padding: 10px; border-radius: 5px;background-color: #f0f8ff;">
 __Benefits__
 
-1. Suitability based on model forecasts 
+1. __Suitability based on model forecasts__ 
 
    - Based on our forecasts, as illustrated by @fig-forecastnewplot, we can observe that both the ETS and ARIMA models predicted turnovers very close to the actual data. This demonstrates that each model can accurately forecast the seasonality and trend of the retail data.
 
-2. Working methodology
+2. __Working methodology__
 
    - Due to the inherent structure of the ETS model, the decomposition of the timeseries data into errors, trend and seasonality make it easier and interpretable to choose a model for forecasting the retail data based on the historical data.
-   - The ARIMA model on the other hand forecasts the future based on the autocorrelations of the historical data (called lags). While this model is not as straight forward to interpret, however, as the model relies on the changes in the past to forecast the future, this typically allows the model to rapidly adjust for sudden changes in trend, resulting in more accurate forecasts.
+   - The ARIMA model on the other hand forecasts the future based on the autocorrelations of the historical data (called lags). While this model is not as straight forward to interpret, however, as the model relies on the changes in the past to forecast the future, this typically allows the model to rapidly adjust for sudden changes in trend or seasonality, resulting in more accurate forecasts. As the model works primarily on the lags of the data, it is additionally suitable to handle cyclic data too. 
 
-3. Model simplicity 
+3. __Model simplicity__ 
 
-  - As the ETS model can deal with multiplicative seasonality, we are not required to transform our timeseries data to stationary data. This makes the ETS model a simple one to work with.
-  - The ARIMA model, however, cannot handle non-stationary data directly. It requires transforming the data through seasonal and regular differencing to achieve stationarity before accurate forecasts can be made. While the model is more complex to interpret and involves several preparatory steps, it is a strong choice for forecasting based on the attributes of the time series data.
+   - As the ETS model can deal with multiplicative seasonality, we are not required to transform our timeseries data to stationary data. This makes the ETS model a simple one to work with.
+   - The ARIMA model, however, cannot handle non-stationary data directly. It requires transforming the data through seasonal and regular differencing to achieve stationarity before accurate forecasts can be made. While the model is more complex to interpret and involves several preparatory steps, it is a strong choice for forecasting based on the attributes of the time series data. 
 
 
 </div>
@@ -868,7 +868,16 @@ __Benefits__
 
 __Limitations__
 
+1. __Model sensitivity__
 
+   - The ARIMA model is generally sensitive to the changes in the recent trend and seasonality of the data. Therefore, __a one-time event such as COVID-19 can significantly affect the future forecasts of the data.__ 
+   - On the other hand, the __ETS model looks at the entire history of the timeseries and is less sensitive to sudden depressions such as COVID-19.__
+
+
+2. __Inability to use exogenous variables__
+
+   - Both the ARIMA and the ETS models __cannot accommodate the effect exogenous variables.__ 
+   - Exogenous variables can be handled by models such as dynamic regression through dummy variables.
 </div>
 
 </div>

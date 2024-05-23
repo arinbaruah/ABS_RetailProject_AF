@@ -480,12 +480,14 @@ Based on the RMSE scores of the 2-year forecast period, we can observe the __the
 
 # Looking deeper into the selected ARIMA and ETS model
 
-Now that we have shortlisted a range of ETS and seasonal ARIMA models, we will analyse the best ETS and seasonal ARIMA models based on AIC values. In each case, the auto generated ETS and seasonal ARIMA models were observed to be the ones with the lowest AIC metric and are described in @tbl-finalmodel.
+Now that we have shortlisted a range of ETS and seasonal ARIMA models, we will analyse the best ETS and seasonal ARIMA models based on AIC and RMSE values. In each case, the auto generated seasonal ARIMA models were observed to be the ones with the lowest AIC metric and are described in @tbl-finalmodel.
+
+However, for the ETS models, we find that the auto generated ETS model was the one with lowest AIC while the MAM model was the one with the lowest RMSE. __As population is a strong indicator of retail turnover, and we expect the population and the economy to be on the rise for the next 2 years and beyond, hence, we will select a model with an additive trend rather than a damped trend.__ Therefore, we will use the MAM ETS model for our future forecasts.
 
 ```{r}
 final_models <- tibble()
 final_models <- fit_arima %>% select(arima_auto)
-final_models <- final_models %>% bind_cols(fit_ets %>% select(ets_auto))
+final_models <- final_models %>% bind_cols(fit_ets %>% select(mam))
 ```
 
 ```{r}
@@ -509,7 +511,8 @@ final_models %>% select(arima_auto) %>% gg_tsresiduals() + labs(title = "Seasona
 :::{.callout-note}
 # Residuals of SARIMA model
 
-Based on the residual plot as illustrated by @fig-sarimaresid, we can observe that 
+Based on the residual plot as illustrated by @fig-sarimaresid, we can observe that:
+
 - the residuals appear as white noise. 
 - there are no significant lags in the ACF, suggesting that the residuals are independent and has not missed out on any information.
 - the residuals appear to be normally distributed apart from one outlier which is due to the low retail sales observed in the COVID-19 period.
@@ -521,7 +524,7 @@ These findings suggest that the assumptions do hold true for the residuals of th
 ```{r}
 #| label: fig-etsresid
 #| fig-cap: "Residuals of the ETS model"
-final_models %>% select(ets_auto) %>% gg_tsresiduals() + labs(title = "ETS (MAdM) residual diagnostics") 
+final_models %>% select(mam) %>% gg_tsresiduals() + labs(title = "ETS (MAM) residual diagnostics") 
 ```
 
 
@@ -529,12 +532,13 @@ final_models %>% select(ets_auto) %>% gg_tsresiduals() + labs(title = "ETS (MAdM
 :::{.callout-note}
 # Residuals of ETS model
 
-Based on the residual plot as illustrated by @fig-etsresid, we can observe that 
-- the residuals appear as white noise. 
-- apart from the first significant lag, all other lags are insignificant,suggesting that the residuals are independent. However, the first significant lag could be of concern here.
+Based on the residual plot as illustrated by @fig-etsresid, we can observe that: 
+
+- the __residuals do not appear as white noise due to a significant first lag__. Lag 4 is a fairly significant lag to be considered aswell. 
+- the variation of the residuals appear to be homoscedastic based on the spread of the innovation residuals across the mean of 0.
 - the residuals appear to be normally distributed apart from one outlier which is due to the low retail sales observed in the COVID-19 period.
 
-These findings suggest that the assumptions do hold true for the residuals of the ETS model.
+These findings suggest that the residuals of the ETS model do not satisfy the IID assumptions since not all the auto-correlations appear to be independent. However, this does not necessarily mean that the forecasts of the ETS model are unreliable.
 :::
 
 
@@ -550,7 +554,7 @@ lb_pval_arima <- augment(final_models) %>% filter(.model == "arima_auto") %>%
   features(.innov,ljung_box,lag = 36,fit_df = 4)
 
 
-augment(final_models) %>% filter(.model == "ets_auto") %>%
+augment(final_models) %>% filter(.model == "mam") %>%
   features(.innov,ljung_box,lag = 36) %>% bind_rows(lb_pval_arima) %>%
 kable(align = "r") %>%
   kable_styling(full_width = T) %>%
@@ -577,7 +581,7 @@ Now that we have analysed the functioning of each of the models, we will assess 
 
 
 ```{r}
-fit_final <- retail_train %>% model(ets_auto = ETS(Turnover),
+fit_final <- retail_train %>% model(ets_mam = ETS(Turnover ~ error("M") + trend("A")+ season("M")),
                              arima_auto = ARIMA(box_cox(Turnover,0)))
 
 ```
@@ -587,7 +591,13 @@ fit_final <- retail_train %>% model(ets_auto = ETS(Turnover),
 #| label: fig-forecast
 #| fig-cap: "Forecasts of each model along with prediction intervals"
 
-fit_final %>% forecast(h = "2 years") %>% autoplot(tail(retail_train,60),alpha=0.8) + labs(title = "Forecasts for ETS and SARIMA models",y = "Turnover (in mil $)",x = "Timeline") + theme_minimal()
+fit_final %>% forecast(h = "2 years") %>% autoplot(alpha = 0.4) + geom_line(
+    data = retail_train |> tail(60),
+    aes(x = Month, y = Turnover, linetype = "Turnover (in mil$)")) + guides(
+    color = guide_legend(title = "Forecast model"),
+    fill = guide_legend(title = "Forecast model"),
+    linetype = guide_legend("ABS data")) + labs(title = "Forecasts for ETS and SARIMA models",
+y = "Turnover (in mil $)",x = "Timeline",caption = "Source: Australian Bureau of Statistics") + theme_minimal()
 
 ```
 
@@ -610,7 +620,14 @@ In order to comment on the forecasts for each of the preferred models, we will c
 #| label: fig-forecompviz
 #| fig-cap: "Forecasts of each model overlayed on the actual turnover"
 
-fit_final %>% forecast(h = "2 years") %>% autoplot(tail(retail,60),alpha=0.8) + labs(title = "Forecasts for ETS and SARIMA models",y = "Turnover (in mil $)",x = "Timeline",caption = "Source: Australian Bureau of Statistics") + theme_minimal()
+fit_final %>% forecast(h = "2 years") %>% autoplot() + geom_line(
+    data = retail |> tail(60),
+    aes(x = Month, y = Turnover, linetype = "Turnover (in mil$)")) + guides(
+    color = guide_legend(title = "Forecast model"),
+    fill = guide_legend(title = "Forecast model"),
+    linetype = guide_legend("ABS data")) + labs(title = "Forecasts for ETS and SARIMA models",
+y = "Turnover (in mil $)",x = "Timeline",caption = "Source: Australian Bureau of Statistics") + theme_minimal()
+
 
 
 ```
@@ -623,7 +640,7 @@ fit_final %>% forecast(h = "2 years") %>% autoplot(tail(retail,60),alpha=0.8) + 
 - We can observe that the __point forecasts of the ETS model were closer to the actual values when compared to the SARIMA model point forecasts.__
 - The forecasted peak for the ETS model was nearly coincident with the actual peak observed in 2022 and 2023 while the SARIMA model under-forecasted on both the occassions.
 - The __actual turnovers in 2022 and 2023 were observed to be always within the 80 % and 95 % prediction intervals for the ETS model__. However, the __forecasts and the prediction intervals based on the SARIMA model were significantly off the mark for the majority of the 2 year forecasts when compared to the actual numbers.__
-- Based on the visualisation in @fig-forecompviz and the RMSE results in @tbl-forecomp, we can say that __the ETS (MAdM) model forecasted better results when compared to the SARIMA(1,1,1)[0,1,2] (m=12) model.__
+- Based on the visualisation in @fig-forecompviz and the RMSE results in @tbl-forecomp, we can say that __the ETS (MAM) model forecasted better results when compared to the SARIMA(1,1,1)[0,1,2] (m=12) model.__
 
 :::
 
@@ -635,7 +652,7 @@ Now that we have fitted the models on the training data and tested it on the in-
 
 ```{r}
 
-fit_new <- retail %>% model(ets_auto = ETS(Turnover),
+fit_new <- retail %>% model(ets_mam = ETS(Turnover ~ error("M") + trend("A")+ season("M")),
                             arima_auto = ARIMA(box_cox(Turnover,0) ~ pdq(1,1,1) + PDQ(0,1,2)))
 ```
 
@@ -838,7 +855,7 @@ forecast_rmse %>% kable(digits = 2, align = "r") %>%
 
 # Benefits and limitations of the chosen forecast models
 
-The benefits and the limitations of the ETS (MAdM) and the SARIMA (1,1,1)[0,1,2] (m=12) are delineated below.
+The benefits and the limitations of the ETS (MAM) and the SARIMA (1,1,1)[0,1,2] (m=12) are delineated below.
 
 <div style="display: flex; gap: 20px;">
 

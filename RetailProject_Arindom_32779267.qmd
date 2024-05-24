@@ -1,6 +1,6 @@
 ---
 title: "Retail forecasting project"
-author: "Arindom Baruah"
+author: "Arindom Baruah (32779267)"
 format: html
 execute: 
   echo: false
@@ -503,10 +503,35 @@ Each of the selected ETS and SARIMA models can be described through the model pa
 
 ### ETS model parameter estimates
 
+<div class="alert alert-block alert-info">
+$\alpha =$ Smoothing parameter for error in the data \
+$\beta =$ Smoothing parameter for the trend component of the data \
+$\gamma =$ Smoothing parameter for the seasonal component of the data \
+
+</div>
+
 ```{r}
-final_models %>% select(mam) %>% report(Model)
+final_models %>% select(mam) %>% report()
 ```
 
+
+Based on the reported parameter estimates of the ETS (MAM) model, we observe that $\beta \approx 0$. __This suggests that the model does not respond quickly to recent trend changes and weighs the historical trend higher.__
+
+### ARIMA model parameter estimates
+
+<div class="alert alert-block alert-info">
+
+$\phi =$ Coefficients of the autoregressive (AR) parts of the ARIMA model. These coefficients indicate whether there is a positive or a negative correlation between a current value and its previous lags. \
+
+$\theta =$ Coefficients of the moving average (MA) parts of the ARIMA model. These coefficients indicate the positive or negative correlation between the current and past errors. \
+
+</div>
+
+The parameter estimates for the SARIMA(1,1,1)(0,1,2) [12] are as follows:
+
+```{r}
+final_models %>% select(arima_auto) %>% report()
+```
 
 
 ## Residual diagnostics
@@ -524,9 +549,10 @@ final_models %>% select(arima_auto) %>% gg_tsresiduals() + labs(title = "Seasona
 
 Based on the residual plot as illustrated by @fig-sarimaresid, we can observe that:
 
-- the residuals appear as white noise. 
+- the __residuals appear as white noise.__ 
 - there are no significant lags in the ACF, suggesting that the residuals are independent and has not missed out on any information.
 - the residuals appear to be normally distributed apart from one outlier which is due to the low retail sales observed in the COVID-19 period.
+- the residual plot indicates that its distribution equally dispersed about 0 and hence, identically distributed.
 
 These findings suggest that the assumptions do hold true for the residuals of the SARIMA model.
 :::
@@ -611,6 +637,23 @@ fit_final %>% forecast(h = "2 years") %>% autoplot(alpha = 0.4) + geom_line(
 y = "Turnover (in mil $)",x = "Timeline",caption = "Source: Australian Bureau of Statistics") + theme_minimal()
 
 ```
+```{r}
+#| label: tbl-etspred
+#| tbl-cap: "Glimpse of the ETS forecasts and its intervals"
+fit_final %>% forecast(h = "2 years") %>% hilo() %>% filter(.model == "ets_mam") %>% select(-c(State,Industry,.model)) %>% head() %>%
+kable(align = "r") %>% 
+  kable_styling(full_width = T) %>%
+  row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
+```
+
+```{r}
+#| label: tbl-arimapred
+#| tbl-cap: "Glimpse of the SARIMA forecasts and its intervals"
+fit_final %>% forecast(h = "2 years") %>% hilo() %>% filter(.model == "arima_auto") %>% select(-c(State,Industry,.model)) %>% head() %>%
+kable(align = "r") %>% 
+  kable_styling(full_width = T) %>%
+  row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
+```
 
 :::{.callout-note}
 # Key takeaway
@@ -678,13 +721,26 @@ fit_new %>% kable(align = "r") %>%
 
 ```
 
+Let us now check the model estimates after refitting the models on to the entire data.
+
+## ETS Model parameter estimates 
+
+
+```{r}
+fit_new %>% select(ets_mam) %>% report()
+```
+## SARIMA Model parameter estimates 
+
+```{r}
+fit_new %>% select(arima_auto) %>% report()
+```
 
 :::{.callout-note}
 # Fitting ETS and SARIMA on the full dataset
 
 Upon fitting the ETS and SARIMA models with the entire ABS retail dataset, we obtain the following models:
 
-1. The ETS model continues to utilise the MAdM model, which considers multiplicative errors, additive trend and multiplicative seasonality.
+1. The ETS model continues to utilise the MAM model, which considers multiplicative errors, additive trend and multiplicative seasonality.
 2. The SARIMA model has been defined as ARIMA(1,1,1)(0,1,2)[12] to keep it consistent with the initial SARIMA model fitted on the training data.
 
 :::
@@ -717,12 +773,28 @@ autoplot(fc_trends, alpha = 0.8,level = 80) +
   theme_minimal() 
 
 ```
+```{r}
+#| label: tbl-etsprednew
+#| tbl-cap: "Glimpse of the ETS forecasts and its intervals for the recent released ABS data"
+fit_new %>% forecast(h = "2 years") %>% hilo() %>% filter(.model == "ets_mam") %>% select(-c(State,Industry,.model)) %>% head() %>%
+kable(align = "r") %>% 
+  kable_styling(full_width = T) %>%
+  row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
+```
 
+```{r}
+#| label: tbl-sarimaprednew
+#| tbl-cap: "Glimpse of the SARIMA forecasts and its intervals for the recent released ABS data"
+fit_new %>% forecast(h = "2 years") %>% hilo() %>% filter(.model == "arima_auto") %>% select(-c(State,Industry,.model)) %>% head() %>%
+kable(align = "r") %>% 
+  kable_styling(full_width = T) %>%
+  row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
+```
 
 :::{.callout-note}
 # Key takeaway
 
-Based on the retail forecasts for the years 2023 and 2024 as illustrated by @fig-forecastnew, we can make the following observations:
+Based on the retail forecasts for the years 2023 and 2024 as illustrated by @fig-forecastnew and tabulated in tbl-etsprednew as well as tbl-sarimaprednew, we can make the following observations:
 
 - The point estimates of the ETS and SARIMA model are close to each other in 2023 while the SARIMA model over forecasted in comparison to the ETS model in 2024.
 

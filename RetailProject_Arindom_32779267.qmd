@@ -497,6 +497,17 @@ final_models %>% kable(digits = 2, align = "r") %>%
   kable_styling(full_width = T) %>%
   row_spec(0, color = "white", background = "#FFAF33", bold = TRUE) 
 ```
+## Model parameter estimates
+
+Each of the selected ETS and SARIMA models can be described through the model parameter estimates. These parameter estimates for the models are delineated below.
+
+### ETS model parameter estimates
+
+```{r}
+final_models %>% select(mam) %>% report(Model)
+```
+
+
 
 ## Residual diagnostics
 

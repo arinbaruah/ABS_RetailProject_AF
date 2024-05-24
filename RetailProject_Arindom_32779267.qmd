@@ -351,8 +351,8 @@ fit_ets <- retail_train %>%
 #| label: fig-decomp
 #| fig-cap: "Decomposition of the ETS model"
 
-fit_ets %>% select(ets_auto) %>% components() %>% 
-autoplot() + labs(title = "Decomposition plot",subtitle = "ETS (M,Ad,M) model")
+fit_ets %>% select(mam) %>% components() %>% 
+autoplot() + labs(title = "Decomposition plot",subtitle = "ETS (M,A,M) model")
 ```
 
 Let us check the default model identified by the ETS algorithm.
@@ -374,7 +374,7 @@ glance(fit_ets) %>% select(".model":"BIC") %>% arrange(AIC) %>% kable(digits = 2
 
 
 :::{.callout-note}
-# Comparison of ETS models
+# Comparison of ETS models based on AIC
 
 - As we can observe from @tbl-ets, the default ETS model fitted a "MAdM" model which is expected to produce forecasts with damped trends.
 
@@ -405,7 +405,7 @@ retail %>%
 
 - Upon observing the PACF plot, we see that the seasonal lags at the end of each year is always significant. Hence, if we are looking to create a seasonal AR model, this would be quite complicated and may not be entirely accurate. However, if we were to create a model anyhow, the seasonal AR model would be defined as __ARIMA(p=24,d=0,q=0)[P=2,D=1,Q=0] (m=12).__
 
-- To create a seasonal MA model, we analyse the ACF plot and mark the last significant lag. In this case, the last significant lag is observed at the end of 1 year (lag 12). Moreover, as we have already taken care of the seasonal lag, we will choose another lag which is the next highest after lag 12. In this instance, we choose our regular lag as lag 9. This indicates that our seasonal MA model will be defined as __ARIMA(p=0,d=1,q=9)[P=0,D=1,Q=1] (m=12)__.
+- To create a seasonal MA model, we analyse the ACF plot and mark the last significant lag. In this case, the last significant lag is observed at the end of 1 year (lag 12). Moreover, as we have already accounted for the seasonal lag, we will choose another lag which is the next highest after lag 12. In this instance, we choose our regular lag as lag 9. This indicates that our seasonal MA model will be defined as __ARIMA(p=0,d=1,q=9)[P=0,D=1,Q=1] (m=12)__.
 
 - We can potentially create a mixture of both a seasonal AR and MA models. Some of potential combinations without overstepping the boundaries of each of the above models would be:
 
@@ -444,7 +444,7 @@ Among the ARIMA models which were fitted, the auto-generated ARIMA was observed 
 :::{.callout-warning}
 # Note on AIC comparison for ETS and ARIMA model
 
-__We cannot use AIC for comparing ARIMA and ETS models.__ This is because ARIMA and ETS are __looking at completely different data (transformed and original data respectively) and this is reflected through the significant differences of AICs for the ETS and ARIMA models.__ Hence, the AIC metric can only be used to compare between different ETS models or between ARIMA models which share the same differencing value.
+__We cannot use AIC for comparing ARIMA and ETS models.__ This is because ARIMA and ETS are __looking at completely different data (transformed and original data respectively) and this is reflected through the significant differences of AICs for the ETS and ARIMA models.__ Since the __log of likelihood is expected to differ for both the untransformed data (for ETS model) and transformed data (for ARIMA model)__, and AIC metric is based on minimising this log likelihood value, hence, comparing the metric for these two sets of models will not provide us with a meaningful insight into their performances.
 
 In our case, __all the ARIMA models have a differencing of 1, and hence, can be compared on the basis of AIC.__
 
@@ -629,7 +629,7 @@ fit_final <- retail_train %>% model(ets_mam = ETS(Turnover ~ error("M") + trend(
 #| fig-cap: "Forecasts of each model along with prediction intervals"
 
 fit_final %>% forecast(h = "2 years") %>% autoplot(alpha = 0.4) + geom_line(
-    data = retail_train |> tail(60),
+    data = retail_train |> tail(120),
     aes(x = Month, y = Turnover, linetype = "Turnover (in mil$)")) + guides(
     color = guide_legend(title = "Forecast model"),
     fill = guide_legend(title = "Forecast model"),
@@ -675,7 +675,7 @@ In order to comment on the forecasts for each of the preferred models, we will c
 #| fig-cap: "Forecasts of each model overlayed on the actual turnover"
 
 fit_final %>% forecast(h = "2 years") %>% autoplot() + geom_line(
-    data = retail |> tail(60),
+    data = retail |> tail(120),
     aes(x = Month, y = Turnover, linetype = "Turnover (in mil$)")) + guides(
     color = guide_legend(title = "Forecast model"),
     fill = guide_legend(title = "Forecast model"),
@@ -734,6 +734,27 @@ fit_new %>% select(ets_mam) %>% report()
 ```{r}
 fit_new %>% select(arima_auto) %>% report()
 ```
+We can additionally express the SARIMA model through the backshift notation as illustrated by @eq-sarima.
+
+<div class="alert alert-block alert-info">
+
+$$\boxed{(1-\phi_1B)(1-B)^1 \times y_t^* = C + (1 + \theta_1 B)(1 + \Theta_1 B^{12} + \Theta_2 B^{24})} $$ {#eq-sarima}
+Where,
+
+$y_t^* = {BoxCox}(y_t, \lambda = 0)$ 
+
+$B$ is the backshift notation and is defined as 
+
+$B y_t = y_{t-1}$
+
+Based on the model parameter estimations, the estimates in parameter estimates in @eq-sarima are as follows:
+
+$\phi_1 = 0.4394$ \
+$\theta_1 = -0.8348$ \
+$\Theta_1 = -0.7907$ \
+$\Theta_2 = -0.0736$ \
+
+</div>
 
 :::{.callout-note}
 # Fitting ETS and SARIMA on the full dataset
@@ -754,7 +775,7 @@ fc_trends <- fit_new %>% forecast(h = "2 years")
 
 autoplot(fc_trends, alpha = 0.8,level = 80) +
   geom_line(
-    data = retail |> tail(60),
+    data = retail |> tail(120),
     aes(x = Month, y = Turnover, linetype = "Turnover (in mil$)")
   ) +
   guides(
@@ -884,7 +905,7 @@ Now that we have obtained the latest released data from ABS, we will see how our
 
 autoplot(fc_trends, alpha = 0.8, level = 80) +
   geom_line(
-    data = retail_data_updated |> tail(60),
+    data = retail_data_updated |> tail(120),
     aes(x = Month, y = Turnover, linetype = "Turnover (in mil$)")
   ) +
   guides(
